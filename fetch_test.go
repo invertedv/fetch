@@ -32,25 +32,25 @@ func TestParseRow(t *testing.T) {
 	m := []bool{false, false}
 	template := []string{"date", "float"}
 
-	v, e := ParseRow(r, template, m, "2006-01-02")
+	v, e := ParseRow(r, template, m)
 	assert.Nil(t, e)
 	exp := []any{time.Date(2022, 07, 17, 0, 0, 0, 0, time.UTC), float32(43.3)}
 	act := []any{*(v[0]).(*time.Time), *v[1].(*float32)}
 	assert.Equal(t, exp, act)
 
 	template = []string{"dateCCYYMMDD", "float"}
-	v, e = ParseRow(r, template, m, "2006-01-02")
+	v, e = ParseRow(r, template, m)
 	assert.Nil(t, e)
 	exp = []any{20220717, float32(43.3)}
 	act = []any{*(v[0]).(*int), *v[1].(*float32)}
 	assert.Equal(t, exp, act)
 
 	template = []string{"dateCCYYMMDD", "int"}
-	v, e = ParseRow(r, template, m, "2006-01-02")
+	v, e = ParseRow(r, template, m)
 	assert.NotNil(t, e)
 
 	m[1] = true
-	v, e = ParseRow(r, template, m, "2006-01-02")
+	v, e = ParseRow(r, template, m)
 	assert.Nil(t, e)
 	assert.Nil(t, v[1])
 }

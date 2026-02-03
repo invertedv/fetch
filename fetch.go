@@ -98,7 +98,7 @@ func FetchXLSX(source string) (Rows, error) {
 // dateFormat - format for dates
 //
 // out - slice of pointers to parsed elements of row
-func ParseRow(row, template []string, missOK []bool, dateFormat string) (out []any, e error) {
+func ParseRow(row, template []string, missOK []bool) (out []any, e error) {
 	if len(row) != len(template) || len(row) != len(missOK) {
 		return nil, nil
 	}
@@ -115,9 +115,9 @@ func ParseRow(row, template []string, missOK []bool, dateFormat string) (out []a
 		case "int":
 			x, miss = toInt(r)
 		case "date":
-			x, miss = toDate(r, dateFormat)
+			x, miss = toDate(r)
 		case "dateCCYYMMDD":
-			x, miss = toCCYYMMDD(r, dateFormat)
+			x, miss = toCCYYMMDD(r)
 		case "string":
 			x, miss = r, false
 		default:
@@ -170,7 +170,6 @@ func WebFetch(url string) (string, error) {
 	return string(body), nil
 }
 
-
 func toFloat(s string) (*float32, bool) {
 	x, e := strconv.ParseFloat(s, 64)
 	if e != nil {
@@ -191,8 +190,19 @@ func toInt(s string) (*int, bool) {
 	return &xx, false
 }
 
-func toDate(s, format string) (*time.Time, bool) {
-	x, e := time.Parse(format, s)
+func toDate(s string) (*time.Time, bool) {
+	fmts := []string{"2006-01-02", "20060102", "Jan 2, 2006", "01/02/2006"}
+
+	var (
+		x time.Time
+		e error
+	)
+	for _, fomt := range fmts {
+		if x, e = time.Parse(fomt, s); e == nil {
+			break
+		}
+
+	}
 	if e != nil {
 		return nil, true
 	}
@@ -200,9 +210,9 @@ func toDate(s, format string) (*time.Time, bool) {
 	return &x, false
 }
 
-func toCCYYMMDD(s, format string) (*int, bool) {
+func toCCYYMMDD(s string) (*int, bool) {
 	var d *time.Time
-	if d, _ = toDate(s, format); d == nil {
+	if d, _ = toDate(s); d == nil {
 		return nil, true
 	}
 
