@@ -12,6 +12,7 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
+// TODO: add Save?
 type Rows [][]string
 
 // FetchCSV returns the contents of source CSV
@@ -42,7 +43,7 @@ func FetchCSV(source string) (Rows, error) {
 		e        error
 	)
 
-	if contents, e = webFetch(source); e != nil {
+	if contents, e = WebFetch(source); e != nil {
 		return nil, e
 	}
 
@@ -59,12 +60,12 @@ func FetchXLSX(source string) (Rows, error) {
 			s string
 			e error
 		)
-		if s, e = webFetch(source); e != nil {
+		if s, e = WebFetch(source); e != nil {
 			return nil, e
 		}
 
 		tmpFile := fmt.Sprintf("%s/temp.xlsx", os.TempDir())
-		if e1 := save(s, tmpFile); e1 != nil {
+		if e1 := Save(s, tmpFile); e1 != nil {
 			return nil, e
 		}
 		defer os.Remove(tmpFile)
@@ -132,6 +133,43 @@ func ParseRow(row, template []string, missOK []bool, dateFormat string) (out []a
 
 	return out, nil
 }
+
+// Save saves the string returned by WebFetch.  Works for both CSV and XLSX.
+func Save(data, localFile string) error {
+	var (
+		e    error
+		file *os.File
+	)
+
+	if file, e = os.Create(localFile); e != nil {
+		return e
+	}
+	defer file.Close()
+
+	_, e = file.WriteString(data)
+
+	return e
+}
+
+// WebFetch returns the contents of the page specified by url.
+func WebFetch(url string) (string, error) {
+	client := &http.Client{}
+	req, _ := http.NewRequest("GET", url, nil)
+
+	r, _ := client.Do(req)
+	defer func() { _ = r.Body.Close() }()
+
+	var (
+		body []byte
+		e    error
+	)
+	if body, e = io.ReadAll(r.Body); e != nil {
+		return "", e
+	}
+
+	return string(body), nil
+}
+
 
 func toFloat(s string) (*float32, bool) {
 	x, e := strconv.ParseFloat(s, 64)
@@ -220,38 +258,4 @@ func smartSplit(s string, delim rune) []string {
 	out = append(out, string(item))
 
 	return out
-}
-
-func webFetch(url string) (string, error) {
-	client := &http.Client{}
-	req, _ := http.NewRequest("GET", url, nil)
-
-	r, _ := client.Do(req)
-	defer func() { _ = r.Body.Close() }()
-
-	var (
-		body []byte
-		e    error
-	)
-	if body, e = io.ReadAll(r.Body); e != nil {
-		return "", e
-	}
-
-	return string(body), nil
-}
-
-func save(data, localFile string) error {
-	var (
-		e    error
-		file *os.File
-	)
-
-	if file, e = os.Create(localFile); e != nil {
-		return e
-	}
-	defer file.Close()
-
-	_, e = file.WriteString(data)
-
-	return e
 }
