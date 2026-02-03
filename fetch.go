@@ -5,14 +5,16 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xuri/excelize/v2"
 )
 
 type Rows [][]string
 
-// FetchCSV returns the contents of source
+// FetchCSV returns the contents of source CSV
 //
 // - source -- either a web address or local file
 func FetchCSV(source string) (Rows, error) {
@@ -47,6 +49,9 @@ func FetchCSV(source string) (Rows, error) {
 	return str2rows(contents), nil
 }
 
+// FetchXLSX returns the contents of source XLSX
+//
+// - source -- either a web address or local file
 func FetchXLSX(source string) (Rows, error) {
 	// fetch from web?
 	if strings.Contains(source, "http") {
@@ -84,6 +89,89 @@ func FetchXLSX(source string) (Rows, error) {
 	return r, nil
 }
 
+// ParseRow will parse a row of the type Rows.
+//
+// row      - an element of Rows
+// template - expected type of each element: float, int, date, CCYYMMDD or string
+// missOK   - whether the element can be missing.
+// dateFormat - format for dates
+//
+// out - slice of pointers to parsed elements of row
+func ParseRow(row, template []string, missOK []bool, dateFormat string) (out []any, e error) {
+	if len(row) != len(template) || len(row) != len(missOK) {
+		return nil, nil
+	}
+
+	for j, r := range row {
+		var (
+			x    any
+			miss bool
+		)
+
+		switch template[j] {
+		case "float":
+			x, miss = toFloat(r)
+		case "int":
+			x, miss = toInt(r)
+		case "date":
+			x, miss = toDate(r, dateFormat)
+		case "dateCCYYMMDD":
+			x, miss = toCCYYMMDD(r, dateFormat)
+		case "string":
+			x, miss = r, false
+		default:
+			panic("unknown template type")
+		}
+
+		if miss && !missOK[j] {
+			return nil, fmt.Errorf("missing required field")
+		}
+
+		out = append(out, x)
+	}
+
+	return out, nil
+}
+
+func toFloat(s string) (*float32, bool) {
+	x, e := strconv.ParseFloat(s, 64)
+	if e != nil {
+		return nil, true
+	}
+
+	xx := float32(x)
+	return &xx, false
+}
+
+func toInt(s string) (*int, bool) {
+	x, e := strconv.ParseInt(s, 10, 64)
+	if e != nil {
+		return nil, true
+	}
+
+	xx := int(x)
+	return &xx, false
+}
+
+func toDate(s, format string) (*time.Time, bool) {
+	x, e := time.Parse(format, s)
+	if e != nil {
+		return nil, true
+	}
+
+	return &x, false
+}
+
+func toCCYYMMDD(s, format string) (*int, bool) {
+	var d *time.Time
+	if d, _ = toDate(s, format); d == nil {
+		return nil, true
+	}
+
+	dd := 10000*d.Year() + 100*int(d.Month()) + d.Day()
+	return &dd, false
+}
+
 func str2rows(s string) Rows {
 	var f Rows
 
@@ -103,14 +191,14 @@ func str2rows(s string) Rows {
 			continue
 		}
 
-		// consider a smart split
 		f = append(f, strings.Split(line, ","))
 	}
 
 	return f
 }
 
-func smartSplit(s, delim string) []string {
+// smartSplit ignores delim if it's between double quotes
+func smartSplit(s string, delim rune) []string {
 	inQuote := false
 	var out []string
 	var item []byte
@@ -120,7 +208,7 @@ func smartSplit(s, delim string) []string {
 			inQuote = !inQuote
 		}
 
-		if !inQuote && b == ',' {
+		if !inQuote && b == delim {
 			out = append(out, string(item))
 			item = nil
 			continue
